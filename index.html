@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw 个人业务看板</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0f0b10;color:#f0e6eb;font-family:'Noto Sans TC',sans-serif;padding:2rem 1.5rem;min-height:100vh;}
+@media(max-width:700px){body{padding:1rem;}}
+.top-bar{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:1.5rem;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#f472b6;animation:blink 1.5s infinite;flex-shrink:0;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.top-title{font-size:20px;font-weight:500;color:#fff;}
+.top-sub{font-size:12px;color:rgba(203,213,225,0.5);margin-top:3px;}
+.top-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pill{font-size:12px;padding:5px 14px;border-radius:20px;border:0.5px solid rgba(244,114,182,0.35);color:#f9a8d4;background:rgba(244,114,182,0.08);cursor:pointer;}
+.pill:hover{background:rgba(244,114,182,0.16);}
+.pill-cfg{font-size:12px;padding:5px 14px;border-radius:20px;border:0.5px solid rgba(251,113,133,0.45);color:#fda4af;background:rgba(251,113,133,0.1);cursor:pointer;}
+.pill-cfg:hover{background:rgba(251,113,133,0.18);}
+.status-badge{font-size:12px;padding:5px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;background:#1a0f14;color:rgba(255,255,255,0.35);}
+.status-badge.ok{background:rgba(244,114,182,0.1);color:#f9a8d4;border:0.5px solid rgba(244,114,182,0.3);}
+.status-badge.err{background:rgba(251,100,80,0.1);color:#fca5a5;border:0.5px solid rgba(251,100,80,0.25);}
+.status-badge.loading{background:rgba(251,113,133,0.1);color:#fda4af;border:0.5px solid rgba(251,113,133,0.3);}
+.sdot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.sdot.blink{animation:blink 1.2s infinite;}
+.sec-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.sec-line{width:3px;height:14px;border-radius:2px;background:#f472b6;flex-shrink:0;}
+.sec-title{font-size:13px;font-weight:500;color:#fff;letter-spacing:.06em;text-transform:uppercase;}
+.divider{border:none;border-top:0.5px solid rgba(244,114,182,0.08);margin:1.25rem 0;}
+.alert-bar{background:rgba(251,100,80,0.08);border:0.5px solid rgba(251,100,80,0.22);border-radius:10px;padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:1.25rem;font-size:13px;color:#fca5a5;}
+.alert-bar.hidden{display:none;}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.5rem;}
+@media(max-width:800px){.metrics{grid-template-columns:repeat(2,1fr);}}
+.mc{background:#1a0f14;border-radius:10px;padding:14px 16px;border:0.5px solid rgba(244,114,182,0.12);}
+.mc-bar{height:2px;border-radius:2px;margin-bottom:10px;}
+.b1{background:linear-gradient(90deg,#f472b6,#a78bfa);}
+.b2{background:linear-gradient(90deg,#a78bfa,#60a5fa);}
+.b3{background:linear-gradient(90deg,#60a5fa,#34d399);}
+.b4{background:linear-gradient(90deg,#34d399,#fb923c);}
+.b5{background:linear-gradient(90deg,#fb923c,#f472b6);}
+.b6{background:linear-gradient(90deg,#34d399,#60a5fa);}
+.b7{background:linear-gradient(90deg,#a78bfa,#f472b6);}
+.b8{background:linear-gradient(90deg,#fb7185,#fb923c);}
+.mc-label{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:6px;}
+.mc-val{font-size:24px;font-weight:500;color:#fff;}
+.mc-val.green{color:#34d399;}
+.mc-val.red{color:#fb7185;}
+.mc-val.pink{color:#f472b6;}
+.mc-note{font-size:11px;margin-top:4px;color:#94a3b8;}
+.two{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:1.5rem;}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem;}
+@media(max-width:700px){.two,.three{grid-template-columns:1fr;}}
+.chart-card{background:#1a0f14;border:0.5px solid rgba(244,114,182,0.12);border-radius:12px;padding:14px 16px;margin-bottom:1.5rem;}
+.chart-title{font-size:13px;font-weight:500;color:rgba(255,255,255,0.6);margin-bottom:12px;}
+.cw{position:relative;width:100%;height:180px;}
+.bar-list{display:flex;flex-direction:column;gap:7px;}
+.bar-row{display:flex;align-items:center;gap:8px;}
+.bar-lbl{font-size:12px;color:#94a3b8;min-width:64px;text-align:right;}
+.bar-track{flex:1;background:rgba(244,114,182,0.05);border-radius:4px;height:22px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:500;color:rgba(255,255,255,0.85);min-width:28px;transition:width 0.8s cubic-bezier(.4,0,.2,1);}
+.bar-cnt{font-size:12px;color:#94a3b8;min-width:32px;text-align:right;}
+.donut-wrap{display:flex;align-items:center;gap:20px;}
+.donut-legend{flex:1;display:flex;flex-direction:column;gap:7px;}
+.leg-row{display:flex;align-items:center;gap:8px;font-size:12px;}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+.leg-lbl{color:#94a3b8;flex:1;}
+.leg-val{color:#fff;}
+.remind-list{display:flex;flex-direction:column;gap:6px;}
+.remind-item{background:#0f0b10;border:0.5px solid rgba(244,114,182,0.08);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;}
+.remind-item.overdue{border-left:2px solid #fb7185;}
+.remind-item.today{border-left:2px solid #fbbf24;}
+.remind-item.soon{border-left:2px solid #f472b6;}
+.remind-date{font-size:11px;color:#64748b;min-width:70px;}
+.remind-name{font-size:13px;font-weight:500;flex:1;}
+.remind-content{font-size:12px;color:#94a3b8;flex:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rtag{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap;}
+.rtag.overdue{background:rgba(251,113,133,0.12);color:#fb7185;}
+.rtag.today{background:rgba(251,191,36,0.12);color:#fbbf24;}
+.rtag.soon{background:rgba(244,114,182,0.1);color:#f9a8d4;}
+.assignee-list{display:flex;flex-direction:column;gap:6px;}
+.assignee-row{background:#0f0b10;border:0.5px solid rgba(244,114,182,0.08);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:12px;}
+.avatar{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#f472b6,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;}
+.a-name{font-size:13px;font-weight:500;flex:1;}
+.a-stats{display:flex;gap:16px;}
+.a-stat-val{font-size:14px;font-weight:500;}
+.a-stat-lbl{font-size:10px;color:#64748b;}
+.month-box{background:#0f0b10;border:0.5px solid rgba(244,114,182,0.08);border-radius:8px;padding:14px;text-align:center;}
+.month-box.cur{border-color:rgba(244,114,182,0.35);}
+.month-lbl{font-size:11px;color:#64748b;margin-bottom:8px;}
+.month-cnt{font-size:22px;font-weight:500;color:#f472b6;}
+.month-sub{font-size:11px;color:#94a3b8;margin-top:4px;}
+.month-amt{font-size:12px;color:#34d399;margin-top:3px;}
+.tcard{background:#1a0f14;border:0.5px solid rgba(244,114,182,0.12);border-radius:12px;overflow:hidden;margin-bottom:1.5rem;}
+.tcard-head{padding:12px 16px;border-bottom:0.5px solid rgba(244,114,182,0.08);font-size:13px;font-weight:500;color:rgba(255,255,255,0.6);}
+.tscroll{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+th{background:#130d13;padding:9px 12px;font-size:11px;color:#64748b;font-weight:500;text-align:left;white-space:nowrap;letter-spacing:.04em;}
+td{padding:10px 12px;font-size:13px;border-bottom:0.5px solid rgba(244,114,182,0.06);white-space:nowrap;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(244,114,182,0.03);}
+.bdg{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;}
+.bdg-紧急{background:rgba(251,113,133,0.12);color:#fb7185;border:0.5px solid rgba(251,113,133,0.2);}
+.bdg-高{background:rgba(251,146,60,0.12);color:#fb923c;border:0.5px solid rgba(251,146,60,0.2);}
+.bdg-中{background:rgba(251,191,36,0.12);color:#fbbf24;border:0.5px solid rgba(251,191,36,0.2);}
+.bdg-低{background:rgba(52,211,153,0.12);color:#34d399;border:0.5px solid rgba(52,211,153,0.2);}
+.bdg-跟进中{background:rgba(96,165,250,0.12);color:#60a5fa;border:0.5px solid rgba(96,165,250,0.2);}
+.bdg-已签约{background:rgba(52,211,153,0.12);color:#34d399;border:0.5px solid rgba(52,211,153,0.2);}
+.bdg-待回访{background:rgba(251,191,36,0.12);color:#fbbf24;border:0.5px solid rgba(251,191,36,0.2);}
+.bdg-未合作{background:rgba(100,116,139,0.12);color:#94a3b8;border:0.5px solid rgba(100,116,139,0.2);}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:#1a0f14;border-radius:16px;border:0.5px solid rgba(244,114,182,0.3);width:100%;max-width:500px;margin:1rem;}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:0.5px solid rgba(244,114,182,0.1);}
+.modal-title{font-size:15px;font-weight:500;color:#fff;}
+.modal-close{font-size:12px;padding:4px 12px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.15);background:transparent;color:rgba(255,255,255,0.5);cursor:pointer;}
+.modal-close:hover{background:rgba(255,255,255,0.08);}
+.modal-body{padding:20px;}
+.field{margin-bottom:16px;}
+.field-label{font-size:12px;color:rgba(255,255,255,0.45);margin-bottom:6px;}
+.field-input{width:100%;background:#0f0b10;border:0.5px solid rgba(244,114,182,0.2);color:#f0e6eb;padding:9px 13px;border-radius:8px;font-size:13px;font-family:inherit;outline:none;}
+.field-input:focus{border-color:rgba(244,114,182,0.5);}
+.field-hint{font-size:11px;color:#64748b;margin-top:5px;line-height:1.6;}
+.modal-footer{padding:12px 20px;border-top:0.5px solid rgba(244,114,182,0.08);display:flex;justify-content:flex-end;gap:8px;}
+.btn-save{font-size:13px;padding:6px 20px;border-radius:20px;border:0.5px solid rgba(244,114,182,0.4);color:#f9a8d4;background:rgba(244,114,182,0.1);cursor:pointer;}
+.btn-save:hover{background:rgba(244,114,182,0.2);}
+.btn-cancel{font-size:13px;padding:6px 16px;border-radius:20px;border:0.5px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.4);background:transparent;cursor:pointer;}
+.btn-cancel:hover{background:rgba(255,255,255,0.05);}
+.no-data{text-align:center;padding:2rem;color:rgba(255,255,255,0.2);font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="modal-overlay" id="cfgModal" onclick="cfgOutside(event)">
+  <div class="modal" id="cfgBox">
+    <div class="modal-header">
+      <div class="modal-title">⚙ 连接 Google Sheets</div>
+      <button class="modal-close" onclick="closeCfg()">✕ 关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <div class="field-label">Google Sheets CSV 网址</div>
+        <input class="field-input" id="cfgUrl" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv&gid=..." />
+        <div class="field-hint">
+          步骤：档案 → 共享 → 发布到网络<br>
+          → 选「个人客户回访记录」分页<br>
+          → 格式选「逗号分隔值 (.csv)」→ 发布 → 复制链接
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-label">负责人名称（用于筛选个人数据，留空显示全部）</div>
+        <input class="field-input" id="cfgOwner" placeholder="例：雨棠" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeCfg()">取消</button>
+      <button class="btn-save" onclick="saveCfg()">储存并载入</button>
+    </div>
+  </div>
+</div>
+
+<div class="top-bar">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span class="live-dot"></span>
+    <div>
+      <div class="top-title">OpenClaw 个人业务看板</div>
+      <div class="top-sub" id="topSub">商务中心 · 客户回访追踪</div>
+    </div>
+  </div>
+  <div class="top-right">
+    <div class="status-badge loading" id="statusBadge">
+      <span class="sdot blink"></span>
+      <span id="statusText">等待载入...</span>
+    </div>
+    <button class="pill-cfg" onclick="openCfg()">⚙ 设置</button>
+    <button class="pill" onclick="loadData()">重新整理</button>
+  </div>
+</div>
+
+<div class="alert-bar hidden" id="alertBar">
+  <span style="font-size:15px;">⚠</span>
+  <span id="alertText"></span>
+</div>
+
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">关键指标总览</span></div>
+<div class="metrics" id="metricsArea">
+  <div class="mc"><div class="mc-bar b1"></div><div class="mc-label">今日新增</div><div class="mc-val">—</div><div class="mc-note">笔收单</div></div>
+  <div class="mc"><div class="mc-bar b2"></div><div class="mc-label">本周收单</div><div class="mc-val">—</div><div class="mc-note">笔</div></div>
+  <div class="mc"><div class="mc-bar b3"></div><div class="mc-label">本月收单</div><div class="mc-val">—</div><div class="mc-note">笔</div></div>
+  <div class="mc"><div class="mc-bar b4"></div><div class="mc-label">总收单数</div><div class="mc-val">—</div><div class="mc-note">笔累计</div></div>
+  <div class="mc"><div class="mc-bar b5"></div><div class="mc-label">本周签约</div><div class="mc-val pink">—</div><div class="mc-note" id="kWeekRate">签约率 —</div></div>
+  <div class="mc"><div class="mc-bar b6"></div><div class="mc-label">本周签约金额</div><div class="mc-val green" id="kWeekAmt">—</div><div class="mc-note">元</div></div>
+  <div class="mc"><div class="mc-bar b7"></div><div class="mc-label">本月签约金额</div><div class="mc-val green" id="kMonthAmt">—</div><div class="mc-note">元</div></div>
+  <div class="mc"><div class="mc-bar b8"></div><div class="mc-label">今日待回访</div><div class="mc-val red" id="kRevisit">—</div><div class="mc-note">笔需处理</div></div>
+</div>
+
+<div class="divider"></div>
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">分布分析</span></div>
+<div class="two">
+  <div class="chart-card" style="margin-bottom:0">
+    <div class="chart-title">紧急程度分布</div>
+    <div class="bar-list" id="urgencyChart"><div class="no-data">载入中...</div></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:0">
+    <div class="chart-title">当前状态分布</div>
+    <div class="donut-wrap">
+      <svg id="donutSvg" width="110" height="110" viewBox="0 0 110 110" style="flex-shrink:0">
+        <circle cx="55" cy="55" r="42" fill="none" stroke="rgba(244,114,182,0.06)" stroke-width="14"/>
+      </svg>
+      <div class="donut-legend" id="donutLegend"><div class="no-data">载入中...</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">趋势图表</span></div>
+<div class="two">
+  <div class="chart-card" style="margin-bottom:0"><div class="chart-title">每日新增收单（近14天）</div><div class="cw"><canvas id="c1"></canvas></div></div>
+  <div class="chart-card" style="margin-bottom:0"><div class="chart-title">签约金额走势（近30天）</div><div class="cw"><canvas id="c2"></canvas></div></div>
+</div>
+
+<div class="divider"></div>
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">回访提醒</span></div>
+<div class="chart-card">
+  <div class="chart-title" id="remindTitle">近期需回访客户</div>
+  <div class="remind-list" id="reminderList"><div class="no-data">载入中...</div></div>
+</div>
+
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">分配对象统计</span></div>
+<div class="two">
+  <div class="chart-card" style="margin-bottom:0">
+    <div class="chart-title">各成员收单数</div>
+    <div class="assignee-list" id="assigneeList"><div class="no-data">载入中...</div></div>
+  </div>
+  <div class="chart-card" style="margin-bottom:0">
+    <div class="chart-title">各成员签约金额</div>
+    <div class="bar-list" id="assigneeAmtChart"><div class="no-data">载入中...</div></div>
+  </div>
+</div>
+
+<div class="divider"></div>
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">月度对比</span></div>
+<div class="three" id="monthCompare">
+  <div class="no-data" style="grid-column:1/-1">载入中...</div>
+</div>
+
+<div class="divider"></div>
+<div class="sec-head"><span class="sec-line"></span><span class="sec-title">最新收单记录</span></div>
+<div class="tcard">
+  <div class="tcard-head">最近 20 笔记录</div>
+  <div class="tscroll">
+    <table>
+      <thead><tr>
+        <th>编号</th><th>客户名称</th><th>收单时间</th><th>紧急程度</th>
+        <th>当前状态</th><th>回访时间</th><th>签约金额</th><th>分配对象</th><th>备注</th>
+      </tr></thead>
+      <tbody id="recentTbody"><tr><td colspan="9" class="no-data">载入中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const CFG_KEY='oc_crm_v2';
+let cfg={};
+try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||'{}');}catch(e){}
+let allRows=[];
+let chart1,chart2;
+
+function openCfg(){
+  document.getElementById('cfgUrl').value=cfg.url||'';
+  document.getElementById('cfgOwner').value=cfg.owner||'';
+  document.getElementById('cfgModal').classList.add('show');
+}
+function closeCfg(){document.getElementById('cfgModal').classList.remove('show');}
+function cfgOutside(e){if(e.target===document.getElementById('cfgModal'))closeCfg();}
+function saveCfg(){
+  cfg.url=document.getElementById('cfgUrl').value.trim();
+  cfg.owner=document.getElementById('cfgOwner').value.trim();
+  localStorage.setItem(CFG_KEY,JSON.stringify(cfg));
+  closeCfg();loadData();
+}
+function setStatus(type,text){
+  const b=document.getElementById('statusBadge');
+  b.className='status-badge '+type;
+  b.innerHTML=`<span class="sdot${type==='loading'?' blink':''}"></span><span>${text}</span>`;
+}
+function parseDate(s){
+  if(!s)return null;
+  const str=s.toString().trim().replace(/[\/\.]/g,'-');
+  const d=new Date(str);return isNaN(d)?null:d;
+}
+function toYMD(d){return d?d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()):'';}
+function p2(n){return String(n).padStart(2,'0');}
+function today(){return new Date(new Date().toDateString());}
+function weekStart(){const d=today();d.setDate(d.getDate()-d.getDay()+1);return d;}
+function monthStart(){const d=today();d.setDate(1);return d;}
+function gv(row,...keys){
+  for(const k of keys){
+    if(row[k]!==undefined&&row[k]!=='')return row[k];
+    const f=Object.keys(row).find(rk=>rk.includes(k));
+    if(f&&row[f]!=='')return row[f];
+  }return '';
+}
+function fmtMoney(n){
+  if(!n||isNaN(n))return '—';
+  if(n>=10000)return (n/10000).toFixed(1)+'w';
+  return Math.round(n).toLocaleString();
+}
+
+async function loadData(){
+  if(!cfg.url){openCfg();return;}
+  setStatus('loading','读取中...');
+  try{
+    const res=await fetch(cfg.url);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    const parsed=Papa.parse(text,{skipEmptyLines:true});
+    const rows=parsed.data;
+    if(!rows||rows.length<2)throw new Error('无数据');
+    const headers=rows[0].map(h=>h.trim());
+    allRows=rows.slice(1).filter(r=>r.some(c=>c&&c.trim())).map(r=>{
+      const o={};headers.forEach((h,i)=>o[h]=(r[i]||'').trim());return o;
+    });
+    renderAll();
+    setStatus('ok','已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){setStatus('err','读取失败：'+e.message);}
+}
+
+function renderAll(){
+  const owner=cfg.owner||'';
+  if(owner)document.getElementById('topSub').textContent=`商务中心 · ${owner} 的业务看板`;
+  const data=owner?allRows.filter(r=>(gv(r,'分配对象')||'').includes(owner)):allRows;
+  const now=today(),todayStr=toYMD(now),wStart=weekStart(),mStart=monthStart();
+  const todayRows=data.filter(r=>toYMD(parseDate(gv(r,'收单时间')))===todayStr);
+  const weekRows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d>=wStart;});
+  const monthRows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d>=mStart;});
+  const weekSigned=weekRows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
+  const monthSigned=monthRows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
+  const weekRate=weekRows.length?Math.round(weekSigned.length/weekRows.length*100):0;
+  const weekAmt=weekSigned.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+  const monthAmt=monthSigned.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+  const revisitDue=data.filter(r=>{
+    const d=parseDate(gv(r,'回访时间'));
+    return d&&toYMD(d)<=todayStr&&!(gv(r,'当前状态')||'').includes('签约');
+  });
+  const bars=['b1','b2','b3','b4','b5','b6','b7','b8'];
+  const labels=['今日新增','本周收单','本月收单','总收单数','本周签约','本周签约金额','本月签约金额','今日待回访'];
+  const vals=[todayRows.length,weekRows.length,monthRows.length,data.length,weekSigned.length,weekAmt,monthAmt,revisitDue.length];
+  const colors=['','','','','pink','green','green','red'];
+  const notes=['笔收单','笔','笔','笔累计','签约率 '+weekRate+'%','元','元','笔需处理'];
+  document.getElementById('metricsArea').innerHTML=vals.map((v,i)=>{
+    const disp=(i===5||i===6)?fmtMoney(v):v;
+    return `<div class="mc"><div class="mc-bar ${bars[i]}"></div><div class="mc-label">${labels[i]}</div><div class="mc-val ${colors[i]}">${disp}</div><div class="mc-note">${notes[i]}</div></div>`;
+  }).join('');
+  const ab=document.getElementById('alertBar');
+  if(revisitDue.length>0){ab.classList.remove('hidden');document.getElementById('alertText').textContent=`今日有 ${revisitDue.length} 位客户需要回访，请尽快跟进！`;}
+  else ab.classList.add('hidden');
+  renderUrgency(data);renderStatus(data);renderTrend(data,now);
+  renderReminders(data,now,todayStr);renderAssignee(allRows);
+  renderMonthCompare(data,now);renderTable(data);
+}
+
+function renderUrgency(data){
+  const counts={};
+  data.forEach(r=>{const u=gv(r,'紧急程度')||'未标注';counts[u]=(counts[u]||0)+1;});
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  const order=['紧急','高','中','低','未标注'];
+  const cols={'紧急':'#fb7185','高':'#fb923c','中':'#fbbf24','低':'#34d399','未标注':'rgba(244,114,182,0.25)'};
+  const keys=order.filter(k=>counts[k]).concat(Object.keys(counts).filter(k=>!order.includes(k)));
+  document.getElementById('urgencyChart').innerHTML=keys.map(k=>{
+    const pct=total?Math.round(counts[k]/total*100):0;
+    const col=cols[k]||'#94a3b8';
+    return `<div class="bar-row"><div class="bar-lbl">${k}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}88">${counts[k]}</div></div><div class="bar-cnt">${pct}%</div></div>`;
+  }).join('')||'<div class="no-data">无数据</div>';
+}
+
+function renderStatus(data){
+  const counts={};
+  data.forEach(r=>{const s=gv(r,'当前状态')||'未知';counts[s]=(counts[s]||0)+1;});
+  const total=Object.values(counts).reduce((a,b)=>a+b,0);
+  const palette=['#f472b6','#a78bfa','#60a5fa','#34d399','#fb923c','#fb7185','#94a3b8'];
+  const keys=Object.keys(counts);
+  const R=42,C=55,circ=2*Math.PI*R;
+  let arcs='',offset=0;
+  keys.forEach((k,i)=>{
+    const pct=counts[k]/total,dash=pct*circ,gap=circ-dash,rot=(offset/total)*360-90;
+    arcs+=`<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${palette[i%palette.length]}" stroke-width="14" stroke-dasharray="${dash} ${gap}" transform="rotate(${rot} ${C} ${C})"/>`;
+    offset+=counts[k];
+  });
+  document.getElementById('donutSvg').innerHTML=
+    `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="rgba(244,114,182,0.06)" stroke-width="14"/>`+arcs+
+    `<text x="${C}" y="${C}" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="16" font-weight="500" font-family="Noto Sans TC,sans-serif">${total}</text>`;
+  document.getElementById('donutLegend').innerHTML=keys.map((k,i)=>
+    `<div class="leg-row"><div class="leg-dot" style="background:${palette[i%palette.length]}"></div><div class="leg-lbl">${k}</div><div class="leg-val">${counts[k]}</div></div>`
+  ).join('')||'<div class="no-data">无数据</div>';
+}
+
+function renderTrend(data,now){
+  const tc='rgba(255,255,255,0.3)',gc='rgba(255,255,255,0.05)';
+  const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tc,font:{size:11}},grid:{color:gc},border:{display:false}},y:{ticks:{color:tc,font:{size:11}},grid:{color:gc},border:{display:false}}}};
+  const days14=[];for(let i=13;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days14.push(toYMD(d));}
+  const cnt14=days14.map(d=>data.filter(r=>toYMD(parseDate(gv(r,'收单时间')))===d).length);
+  if(chart1)chart1.destroy();
+  chart1=new Chart(document.getElementById('c1'),{type:'bar',data:{labels:days14.map(d=>d.slice(5)),datasets:[{data:cnt14,backgroundColor:'rgba(244,114,182,0.5)',borderColor:'#f472b6',borderWidth:1,borderRadius:4}]},options:base});
+  const days30=[];for(let i=29;i>=0;i--){const d=new Date(now);d.setDate(d.getDate()-i);days30.push(toYMD(d));}
+  const amts30=days30.map(d=>{
+    return data.filter(r=>{const sd=parseDate(gv(r,'签约日期')||gv(r,'收单时间'));return sd&&toYMD(sd)===d&&(gv(r,'当前状态')||'').includes('签约');})
+      .reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+  });
+  if(chart2)chart2.destroy();
+  chart2=new Chart(document.getElementById('c2'),{type:'line',data:{labels:days30.map((d,i)=>i%5===0?d.slice(5):''),datasets:[{data:amts30,borderColor:'#34d399',backgroundColor:'rgba(52,211,153,0.08)',pointBackgroundColor:'#34d399',pointRadius:3,tension:0.3,fill:true}]},options:base});
+}
+
+function renderReminders(data,now,todayStr){
+  const list=data.filter(r=>{
+    const d=parseDate(gv(r,'回访时间'));if(!d)return false;
+    const diff=Math.floor((d-now)/86400000);return diff>=-7&&diff<=14;
+  }).sort((a,b)=>parseDate(gv(a,'回访时间'))-parseDate(gv(b,'回访时间'))).slice(0,12);
+  document.getElementById('remindTitle').textContent=`近期需回访客户（${list.length} 笔）`;
+  if(!list.length){document.getElementById('reminderList').innerHTML='<div class="no-data">近期无回访记录</div>';return;}
+  document.getElementById('reminderList').innerHTML=list.map(r=>{
+    const d=parseDate(gv(r,'回访时间'));
+    const diff=Math.floor((d-now)/86400000);
+    let cls='soon',tag='';
+    if(diff<0){cls='overdue';tag='<span class="rtag overdue">已逾期</span>';}
+    else if(diff===0){cls='today';tag='<span class="rtag today">今日</span>';}
+    else if(diff<=3){tag='<span class="rtag soon">即将</span>';}
+    return `<div class="remind-item ${cls}"><div class="remind-date">${toYMD(d)}</div><div class="remind-name">${gv(r,'客户名称')||'—'}</div><div class="remind-content">${gv(r,'回访内容')||'—'}</div>${tag}</div>`;
+  }).join('');
+}
+
+function renderAssignee(data){
+  const counts={},amts={};
+  data.forEach(r=>{
+    const a=gv(r,'分配对象')||'未分配';
+    counts[a]=(counts[a]||0)+1;
+    if((gv(r,'当前状态')||'').includes('签约'))amts[a]=(amts[a]||0)+(parseFloat(gv(r,'签约金额'))||0);
+  });
+  const sorted=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
+  const maxAmt=Math.max(...Object.values(amts).filter(Boolean),1);
+  document.getElementById('assigneeList').innerHTML=sorted.map(a=>
+    `<div class="assignee-row"><div class="avatar">${a.slice(0,1)}</div><div class="a-name">${a}</div><div class="a-stats"><div class="a-stat"><div class="a-stat-val" style="color:#f472b6">${counts[a]}</div><div class="a-stat-lbl">收单</div></div><div class="a-stat"><div class="a-stat-val" style="color:#34d399">${amts[a]?fmtMoney(amts[a]):'0'}</div><div class="a-stat-lbl">签约额</div></div></div></div>`
+  ).join('')||'<div class="no-data">无数据</div>';
+  const amtSorted=Object.keys(amts).sort((a,b)=>amts[b]-amts[a]);
+  document.getElementById('assigneeAmtChart').innerHTML=amtSorted.map(a=>{
+    const pct=Math.round(amts[a]/maxAmt*100);
+    return `<div class="bar-row"><div class="bar-lbl">${a}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:rgba(52,211,153,0.5)">${fmtMoney(amts[a])}</div></div></div>`;
+  }).join('')||'<div class="no-data">暂无签约记录</div>';
+}
+
+function renderMonthCompare(data,now){
+  const months=[];
+  for(let i=2;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({y:d.getFullYear(),m:d.getMonth()});}
+  document.getElementById('monthCompare').innerHTML=months.map(({y,m})=>{
+    const rows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d.getFullYear()===y&&d.getMonth()===m;});
+    const signed=rows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
+    const amt=signed.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+    const rate=rows.length?Math.round(signed.length/rows.length*100):0;
+    const isCur=y===now.getFullYear()&&m===now.getMonth();
+    return `<div class="month-box${isCur?' cur':''}"><div class="month-lbl">${y}年${m+1}月${isCur?' 🔸':''}</div><div class="month-cnt">${rows.length}</div><div class="month-sub">收单 · ${signed.length} 笔签约（${rate}%）</div><div class="month-amt">${amt>0?fmtMoney(amt)+' 元':'—'}</div></div>`;
+  }).join('');
+}
+
+function renderTable(data){
+  const sorted=[...data].filter(r=>parseDate(gv(r,'收单时间'))).sort((a,b)=>parseDate(gv(b,'收单时间'))-parseDate(gv(a,'收单时间'))).slice(0,20);
+  if(!sorted.length){document.getElementById('recentTbody').innerHTML='<tr><td colspan="9" class="no-data">无数据</td></tr>';return;}
+  document.getElementById('recentTbody').innerHTML=sorted.map(r=>{
+    const status=gv(r,'当前状态')||'—',urgency=gv(r,'紧急程度')||'—';
+    const amt=parseFloat(gv(r,'签约金额'));
+    return `<tr><td style="color:#64748b">${gv(r,'编号')||'—'}</td><td style="font-weight:500">${gv(r,'客户名称')||'—'}</td><td style="color:#94a3b8">${gv(r,'收单时间')||'—'}</td><td><span class="bdg bdg-${urgency}">${urgency}</span></td><td><span class="bdg bdg-${status}">${status}</span></td><td style="color:#94a3b8">${gv(r,'回访时间')||'—'}</td><td style="color:${amt>0?'#34d399':'#64748b'}">${amt>0?fmtMoney(amt):'—'}</td><td>${gv(r,'分配对象')||'—'}</td><td style="color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis">${gv(r,'备注')||'—'}</td></tr>`;
+  }).join('');
+}
+
+window.onload=()=>{if(cfg.url)loadData();else openCfg();};
+</script>
+</body>
+</html>
