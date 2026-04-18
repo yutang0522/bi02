@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenClaw 个人业务看板</title>
+<title>客户信息数据</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -229,17 +229,7 @@ tr:hover td{background:rgba(244,114,182,0.03);}
   <div class="remind-list" id="reminderList"><div class="no-data">载入中...</div></div>
 </div>
 
-<div class="sec-head"><span class="sec-line"></span><span class="sec-title">分配对象统计</span></div>
-<div class="two">
-  <div class="chart-card" style="margin-bottom:0">
-    <div class="chart-title">各成员收单数</div>
-    <div class="assignee-list" id="assigneeList"><div class="no-data">载入中...</div></div>
-  </div>
-  <div class="chart-card" style="margin-bottom:0">
-    <div class="chart-title">各成员签约金额</div>
-    <div class="bar-list" id="assigneeAmtChart"><div class="no-data">载入中...</div></div>
-  </div>
-</div>
+
 
 <div class="divider"></div>
 <div class="sec-head"><span class="sec-line"></span><span class="sec-title">月度对比</span></div>
@@ -255,7 +245,7 @@ tr:hover td{background:rgba(244,114,182,0.03);}
     <table>
       <thead><tr>
         <th>编号</th><th>客户名称</th><th>收单时间</th><th>紧急程度</th>
-        <th>当前状态</th><th>回访时间</th><th>签约金额</th><th>分配对象</th><th>备注</th>
+        <th>当前状态</th><th>回访时间</th><th>签约金额</th><th>签约日期</th><th>备注</th>
       </tr></thead>
       <tbody id="recentTbody"><tr><td colspan="9" class="no-data">载入中...</td></tr></tbody>
     </table>
@@ -342,14 +332,16 @@ function renderAll(){
   const todayRows=data.filter(r=>toYMD(parseDate(gv(r,'收单时间')))===todayStr);
   const weekRows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d>=wStart;});
   const monthRows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d>=mStart;});
-  const weekSigned=weekRows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
-  const monthSigned=monthRows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
+  const parseMoney=s=>parseFloat((s||'').toString().replace(/,/g,''))||0;
+  const isSigned=r=>parseMoney(gv(r,'签约金额'))>0;
+  const weekSigned=weekRows.filter(isSigned);
+  const monthSigned=monthRows.filter(isSigned);
   const weekRate=weekRows.length?Math.round(weekSigned.length/weekRows.length*100):0;
-  const weekAmt=weekSigned.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
-  const monthAmt=monthSigned.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+  const weekAmt=weekSigned.reduce((s,r)=>s+parseMoney(gv(r,'签约金额')),0);
+  const monthAmt=monthSigned.reduce((s,r)=>s+parseMoney(gv(r,'签约金额')),0);
   const revisitDue=data.filter(r=>{
     const d=parseDate(gv(r,'回访时间'));
-    return d&&toYMD(d)<=todayStr&&!(gv(r,'当前状态')||'').includes('签约');
+    return d&&toYMD(d)<=todayStr&&!isSigned(r);
   });
   const bars=['b1','b2','b3','b4','b5','b6','b7','b8'];
   const labels=['今日新增','本周收单','本月收单','总收单数','本周签约','本周签约金额','本月签约金额','今日待回访'];
@@ -364,7 +356,7 @@ function renderAll(){
   if(revisitDue.length>0){ab.classList.remove('hidden');document.getElementById('alertText').textContent=`今日有 ${revisitDue.length} 位客户需要回访，请尽快跟进！`;}
   else ab.classList.add('hidden');
   renderUrgency(data);renderStatus(data);renderTrend(data,now);
-  renderReminders(data,now,todayStr);renderAssignee(allRows);
+  renderReminders(data,now,todayStr);
   renderMonthCompare(data,now);renderTable(data);
 }
 
@@ -461,8 +453,8 @@ function renderMonthCompare(data,now){
   for(let i=2;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({y:d.getFullYear(),m:d.getMonth()});}
   document.getElementById('monthCompare').innerHTML=months.map(({y,m})=>{
     const rows=data.filter(r=>{const d=parseDate(gv(r,'收单时间'));return d&&d.getFullYear()===y&&d.getMonth()===m;});
-    const signed=rows.filter(r=>(gv(r,'当前状态')||'').includes('签约'));
-    const amt=signed.reduce((s,r)=>s+(parseFloat(gv(r,'签约金额'))||0),0);
+    const signed=rows.filter(r=>parseFloat((gv(r,'签约金额')||'').replace(/,/g,''))>0);
+    const amt=signed.reduce((s,r)=>s+(parseFloat((gv(r,'签约金额')||'').replace(/,/g,''))||0),0);
     const rate=rows.length?Math.round(signed.length/rows.length*100):0;
     const isCur=y===now.getFullYear()&&m===now.getMonth();
     return `<div class="month-box${isCur?' cur':''}"><div class="month-lbl">${y}年${m+1}月${isCur?' 🔸':''}</div><div class="month-cnt">${rows.length}</div><div class="month-sub">收单 · ${signed.length} 笔签约（${rate}%）</div><div class="month-amt">${amt>0?fmtMoney(amt)+' 元':'—'}</div></div>`;
@@ -473,9 +465,11 @@ function renderTable(data){
   const sorted=[...data].filter(r=>parseDate(gv(r,'收单时间'))).sort((a,b)=>parseDate(gv(b,'收单时间'))-parseDate(gv(a,'收单时间'))).slice(0,20);
   if(!sorted.length){document.getElementById('recentTbody').innerHTML='<tr><td colspan="9" class="no-data">无数据</td></tr>';return;}
   document.getElementById('recentTbody').innerHTML=sorted.map(r=>{
-    const status=gv(r,'当前状态')||'—',urgency=gv(r,'紧急程度')||'—';
-    const amt=parseFloat(gv(r,'签约金额'));
-    return `<tr><td style="color:#64748b">${gv(r,'编号')||'—'}</td><td style="font-weight:500">${gv(r,'客户名称')||'—'}</td><td style="color:#94a3b8">${gv(r,'收单时间')||'—'}</td><td><span class="bdg bdg-${urgency}">${urgency}</span></td><td><span class="bdg bdg-${status}">${status}</span></td><td style="color:#94a3b8">${gv(r,'回访时间')||'—'}</td><td style="color:${amt>0?'#34d399':'#64748b'}">${amt>0?fmtMoney(amt):'—'}</td><td>${gv(r,'分配对象')||'—'}</td><td style="color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis">${gv(r,'备注')||'—'}</td></tr>`;
+    const urgency=gv(r,'紧急程度')||'—';
+    const signed=parseFloat((gv(r,'签约金额')||'').replace(/,/g,''))>0;
+    const amt=parseFloat((gv(r,'签约金额')||'').replace(/,/g,''));
+    const statusLabel=signed?'已签约':gv(r,'当前状态')||'—';
+    return `<tr><td style="color:#64748b">${gv(r,'编号')||'—'}</td><td style="font-weight:500">${gv(r,'客户名称')||'—'}</td><td style="color:#94a3b8">${gv(r,'收单时间')||'—'}</td><td><span class="bdg bdg-${urgency}">${urgency}</span></td><td><span class="bdg bdg-${statusLabel}">${statusLabel}</span></td><td style="color:#94a3b8">${gv(r,'回访时间')||'—'}</td><td style="color:${amt>0?'#34d399':'#64748b'}">${amt>0?fmtMoney(amt):'—'}</td><td style="color:#94a3b8">${gv(r,'签约日期')||'—'}</td><td style="color:#64748b;max-width:160px;overflow:hidden;text-overflow:ellipsis">${gv(r,'备注')||'—'}</td></tr>`;
   }).join('');
 }
 
