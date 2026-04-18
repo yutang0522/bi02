@@ -310,23 +310,26 @@ function fmtMoney(n){
   return Math.round(n).toLocaleString();
 }
 
-async function loadData(){
+function loadData(){
   if(!cfg.url){openCfg();return;}
   setStatus('loading','读取中...');
-  try{
-    const res=await fetch(cfg.url);
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const text=await res.text();
-    const parsed=Papa.parse(text,{skipEmptyLines:true});
-    const rows=parsed.data;
-    if(!rows||rows.length<2)throw new Error('无数据');
-    const headers=rows[0].map(h=>h.trim());
-    allRows=rows.slice(1).filter(r=>r.some(c=>c&&c.trim())).map(r=>{
-      const o={};headers.forEach((h,i)=>o[h]=(r[i]||'').trim());return o;
-    });
-    renderAll();
-    setStatus('ok','已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
-  }catch(e){setStatus('err','读取失败：'+e.message);}
+  Papa.parse(cfg.url,{
+    download:true,
+    skipEmptyLines:true,
+    complete:function(parsed){
+      try{
+        const rows=parsed.data;
+        if(!rows||rows.length<2)throw new Error('无数据，请确认表格有填写内容');
+        const headers=rows[0].map(h=>h.trim());
+        allRows=rows.slice(1).filter(r=>r.some(c=>c&&c.trim())).map(r=>{
+          const o={};headers.forEach((h,i)=>o[h]=(r[i]||'').trim());return o;
+        });
+        renderAll();
+        setStatus('ok','已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
+      }catch(e){setStatus('err',e.message);}
+    },
+    error:function(e){setStatus('err','读取失败：'+e.message);}
+  });
 }
 
 function renderAll(){
