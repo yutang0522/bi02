@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenClaw 个人业务看板</title>
+<title>T1官网客户记录数据</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -146,7 +146,7 @@ tr:hover td{background:rgba(244,114,182,0.03);}
         <input class="field-input" id="cfgUrl" placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv&gid=..." />
         <div class="field-hint">
           步骤：档案 → 共享 → 发布到网络<br>
-          → 选「个人客户回访记录」分页<br>
+          → 选「官网客户记录数据」分页<br>
           → 格式选「逗号分隔值 (.csv)」→ 发布 → 复制链接
         </div>
       </div>
@@ -166,7 +166,7 @@ tr:hover td{background:rgba(244,114,182,0.03);}
   <div style="display:flex;align-items:center;gap:10px;">
     <span class="live-dot"></span>
     <div>
-      <div class="top-title">OpenClaw 个人业务看板</div>
+      <div class="top-title">T1官网客户记录数据</div>
       <div class="top-sub" id="topSub">商务中心 · 客户回访追踪</div>
     </div>
   </div>
@@ -228,8 +228,6 @@ tr:hover td{background:rgba(244,114,182,0.03);}
   <div class="chart-title" id="remindTitle">近期需回访客户</div>
   <div class="remind-list" id="reminderList"><div class="no-data">载入中...</div></div>
 </div>
-
-
 
 <div class="divider"></div>
 <div class="sec-head"><span class="sec-line"></span><span class="sec-title">月度对比</span></div>
@@ -326,7 +324,7 @@ function loadData(){
 
 function renderAll(){
   const owner=cfg.owner||'';
-  if(owner)document.getElementById('topSub').textContent=`商务中心 · ${owner} 的业务看板`;
+  if(owner)document.getElementById('topSub').textContent=`商务中心 · ${owner} 的官网客户记录数据`;
   const data=owner?allRows.filter(r=>(gv(r,'分配对象')||'').includes(owner)):allRows;
   const now=today(),todayStr=toYMD(now),wStart=weekStart(),mStart=monthStart();
   const todayRows=data.filter(r=>toYMD(parseDate(gv(r,'收单时间')))===todayStr);
@@ -427,25 +425,6 @@ function renderReminders(data,now,todayStr){
     else if(diff<=3){tag='<span class="rtag soon">即将</span>';}
     return `<div class="remind-item ${cls}"><div class="remind-date">${toYMD(d)}</div><div class="remind-name">${gv(r,'客户名称')||'—'}</div><div class="remind-content">${gv(r,'回访内容')||'—'}</div>${tag}</div>`;
   }).join('');
-}
-
-function renderAssignee(data){
-  const counts={},amts={};
-  data.forEach(r=>{
-    const a=gv(r,'分配对象')||'未分配';
-    counts[a]=(counts[a]||0)+1;
-    if((gv(r,'当前状态')||'').includes('签约'))amts[a]=(amts[a]||0)+(parseFloat(gv(r,'签约金额'))||0);
-  });
-  const sorted=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]);
-  const maxAmt=Math.max(...Object.values(amts).filter(Boolean),1);
-  document.getElementById('assigneeList').innerHTML=sorted.map(a=>
-    `<div class="assignee-row"><div class="avatar">${a.slice(0,1)}</div><div class="a-name">${a}</div><div class="a-stats"><div class="a-stat"><div class="a-stat-val" style="color:#f472b6">${counts[a]}</div><div class="a-stat-lbl">收单</div></div><div class="a-stat"><div class="a-stat-val" style="color:#34d399">${amts[a]?fmtMoney(amts[a]):'0'}</div><div class="a-stat-lbl">签约额</div></div></div></div>`
-  ).join('')||'<div class="no-data">无数据</div>';
-  const amtSorted=Object.keys(amts).sort((a,b)=>amts[b]-amts[a]);
-  document.getElementById('assigneeAmtChart').innerHTML=amtSorted.map(a=>{
-    const pct=Math.round(amts[a]/maxAmt*100);
-    return `<div class="bar-row"><div class="bar-lbl">${a}</div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:rgba(52,211,153,0.5)">${fmtMoney(amts[a])}</div></div></div>`;
-  }).join('')||'<div class="no-data">暂无签约记录</div>';
 }
 
 function renderMonthCompare(data,now){
